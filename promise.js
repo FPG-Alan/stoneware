@@ -41,7 +41,37 @@ function LocalPromise(executor) {
   executor(this.resolve.bind(this), this.reject.bind(this));
 }
 
-function resolvePromise(x) {}
+function resolvePromise(promise, x, resolve, reject) {
+  if (x === promise) {
+    return reject(
+      new TypeError("The promise and the return value are the same")
+    );
+  }
+  if (x instanceof LocalPromise) {
+    x.then((value) => {
+      resolvePromise(promise, value, resolve, reject);
+    }, reject);
+  } else if (typeof x === "object" || typeof x === "function") {
+    if (x === null) {
+      return resolve(x);
+    }
+
+    let then;
+    try {
+      then = x.then;
+    } catch (e) {
+      // 如果取 x.then 的值时抛出错误 e ，则以 e 为据因拒绝 promise
+      return reject(error);
+    }
+
+    if (typeof then === "function") {
+    } else {
+      resolve(x);
+    }
+  } else {
+    resolve(x);
+  }
+}
 LocalPromise.prototype.then = function (
   potential_onFulfilled,
   potential_onRejected
@@ -58,17 +88,12 @@ LocalPromise.prototype.then = function (
         throw new Error(reason);
       }
     });
-
-  return new LocalPromise((resolve, reject) => {
+  const nextPromise = new LocalPromise((resolve, reject) => {
     if (this.state === FULFILLED) {
       setTimeout(() => {
         try {
           const x = onFulfilled(this.value);
-          if (x instanceof LocalPromise) {
-            x.then(resolve, reject);
-          } else {
-            resolve(x);
-          }
+          resolvePromise(nextPromise, x, resolve, reject);
         } catch (e) {
           reject(e);
         }
@@ -87,11 +112,7 @@ LocalPromise.prototype.then = function (
         setTimeout(() => {
           try {
             const x = onFulfilled(value);
-            if (x instanceof LocalPromise) {
-              x.then(resolve, reject);
-            } else {
-              resolve(x);
-            }
+            resolvePromise(nextPromise, x, resolve, reject);
           } catch (e) {
             reject(e);
           }
@@ -107,8 +128,11 @@ LocalPromise.prototype.then = function (
       });
     }
   });
+
+  return nextPromise;
 };
 
+console.log("start");
 new LocalPromise((resolve, reject) => {
   setTimeout(() => {
     resolve("hello world");
@@ -127,3 +151,5 @@ new LocalPromise((resolve, reject) => {
   .then((value) => {
     console.log(value);
   });
+
+console.log("main end");
