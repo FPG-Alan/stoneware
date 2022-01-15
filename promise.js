@@ -60,11 +60,34 @@ function resolvePromise(promise, x, resolve, reject) {
     try {
       then = x.then;
     } catch (e) {
-      // 如果取 x.then 的值时抛出错误 e ，则以 e 为据因拒绝 promise
       return reject(error);
     }
 
     if (typeof then === "function") {
+      let called = false;
+      try {
+        then.call(
+          x,
+          function (value) {
+            if (called) return;
+            called = true;
+
+            resolvePromise(promise, value, resolve, reject);
+          },
+          function (reason) {
+            if (called) return;
+            called = true;
+
+            reject(reason);
+          }
+        );
+      } catch (e) {
+        if (called) {
+          return;
+        }
+
+        reject(e);
+      }
     } else {
       resolve(x);
     }
