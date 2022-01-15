@@ -8,36 +8,6 @@ function LocalPromise(executor) {
   this.onFulfilledCB = [];
   this.onRejectedCB = [];
 
-  this.resolve = function (value) {
-    if (this.state === PENDING) {
-      this.state = FULFILLED;
-      this.value = value;
-
-      if (this.onFulfilledCB.length > 0) {
-        this.onFulfilledCB.forEach((onFulfilled) => {
-          setTimeout(() => {
-            onFulfilled(this.value);
-          }, 0);
-        });
-      }
-    }
-  };
-
-  this.reject = function (reason) {
-    if (this.state === PENDING) {
-      this.state = REJECTED;
-      this.reason = reason;
-
-      if (this.onRejectedCB.length > 0) {
-        this.onRejectedCB.forEach((onRejected) => {
-          setTimeout(() => {
-            onRejected(this.reason);
-          }, 0);
-        });
-      }
-    }
-  };
-
   executor(this.resolve.bind(this), this.reject.bind(this));
 }
 
@@ -154,6 +124,103 @@ LocalPromise.prototype.then = function (
 
   return nextPromise;
 };
+LocalPromise.prototype.resolve = function (value) {
+  if (this.state === PENDING) {
+    this.state = FULFILLED;
+    this.value = value;
+
+    if (this.onFulfilledCB.length > 0) {
+      this.onFulfilledCB.forEach((onFulfilled) => {
+        setTimeout(() => {
+          onFulfilled(this.value);
+        }, 0);
+      });
+    }
+  }
+};
+
+LocalPromise.prototype.reject = function (value) {
+  if (this.state === PENDING) {
+    this.state = REJECTED;
+    this.reason = reason;
+
+    if (this.onRejectedCB.length > 0) {
+      this.onRejectedCB.forEach((onRejected) => {
+        setTimeout(() => {
+          onRejected(this.reason);
+        }, 0);
+      });
+    }
+  }
+};
+
+LocalPromise.resolve = function (value) {
+  if (value instanceof LocalPromise) {
+    return value;
+  } else {
+    return new LocalPromise((resolve, reject) => {
+      resolve(value);
+    });
+  }
+};
+
+// 返回一个promise
+// 1. 所有promise都变为fulfilled， 该promise状态变为fulfilled， 把所有promise的值放在数组中返回（resolve）
+// 2. 任意一个promise变为reject， 该promise状态变为rejected， 返回这个拒绝原因
+LocalPromise.all = function (promises) {
+  return new LocalPromise((resolve, reject) => {
+    const values = [];
+    if (promises.length === 0) {
+      resolve([]);
+    }
+    for (let i = 0, l = promises.length; i < l; i += 1) {
+      promises[i].then(
+        (value) => {
+          values.push(value);
+          if (values.length === promises.length) {
+            resolve(values);
+          }
+        },
+        (reason) => {
+          reject(reason);
+        }
+      );
+    }
+  });
+};
+
+module.exports = {
+  resolved: function (value) {
+    return new LocalPromise(function (resolve) {
+      resolve(value);
+    });
+  },
+  rejected: function (reason) {
+    return new LocalPromise(function (resolve, reject) {
+      reject(reason);
+    });
+  },
+  deferred: function () {
+    var resolve, reject;
+
+    return {
+      promise: new LocalPromise(function (rslv, rjct) {
+        resolve = rslv;
+        reject = rjct;
+      }),
+      resolve: resolve,
+      reject: reject,
+    };
+  },
+};
+
+// const p4 = {
+//   then(resolve) {
+//     setTimeout(() => resolve(4), 1000);
+//   },
+// };
+
+// LocalPromise.resolve(p4).then(console.log);
 
 console.log("start");
 new LocalPromise((resolve, reject) => {
